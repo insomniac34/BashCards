@@ -311,6 +311,7 @@ int main(int argc, char **argv) {
         switch(recv_signal()) {
             case -1:
                 terminate = true;
+                std::cout << std::endl << "**BashCards: bye!**" << std::endl;
                 break;
             case 0: //set hint
                 {
