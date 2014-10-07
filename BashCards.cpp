@@ -93,43 +93,45 @@ public:
 
 	VerbFlashCard(const char *question, const char *answer, std::vector<std::string> *verbList) : FlashCard(question, answer) {
 
-        Conjugation curConjugation;
-        curConjugation.forms[0] = (*verbList)[3];
-        curConjugation.forms[1] = (*verbList)[4];
-        curConjugation.forms[2] = (*verbList)[5];
-        curConjugation.forms[3] = (*verbList)[6];
-        curConjugation.forms[4] = (*verbList)[7];
-        curConjugation.forms[5] = (*verbList)[8];                                               
+        std::deque<std::string> curConjugation;
+        //for (int i = 0; i < 9; i++) printf("adding word... %s\n", ((*verbList)[i]).c_str());
+        curConjugation.push_back((*verbList)[3]);
+        curConjugation.push_back((*verbList)[4]);
+        curConjugation.push_back((*verbList)[5]);
+        curConjugation.push_back((*verbList)[6]);
+        curConjugation.push_back((*verbList)[7]);
+        curConjugation.push_back((*verbList)[8]);
 
-		this->conjugations.insert(std::pair<std::string, Conjugation> ((*verbList)[2], curConjugation));	
+		this->conjugations.insert(std::pair<std::string, std::deque<std::string> > ((*verbList)[2], curConjugation));	
 	}
 
 	typedef struct Conjugation {
         std::deque<std::string> forms;
         Conjugation() {
-        	std::cout << "CONSTRUCTOR!" << std::endl;
             this->forms = std::deque<std::string> (6, " ");
         }
         ~Conjugation() {}
 	};	
 
-	std::unordered_map<std::string, Conjugation> conjugations; //hash table that maps verb tense to a given conjugation.		
+	std::map<std::string, std::deque<std::string> > conjugations; //hash table that maps verb tense to a given conjugation.		
 
 	//overrides base class variant of ask()...iterates over present conjugations...
 	virtual void ask(int *successCount, int *failureCount, int *questionCount, int *result)  {
-		for (std::unordered_map<std::string, Conjugation>::iterator iter = this->conjugations.begin(); iter != this->conjugations.end(); iter++) {
+		for (std::map<std::string, std::deque<std::string> >::iterator iter = this->conjugations.begin(); iter != this->conjugations.end(); iter++) {
             std::string formStates[6] = {"***", "***", "***", "***", "***", "***"};
             for (int i = 0; i < 6; i++) {
-                std::string ans;
-                for (int j = 0; j < 6; j++) std::cout << verb_forms[j] + ": " + formStates[j] + " " << std::endl;
-                std::cout << std::endl;
-    			std::cout << "What is the " + verb_forms[i] + " of the " << iter->first << " tense of the verb " << this->question << "?" << std::endl;
-
+                std::string ans;                
+                std::cout << std::endl << "******************************" << std::endl;
+                for (int j = 0; j < 6; j++) {
+                	std::cout << verb_forms[j] + ": " + formStates[j] + " " << std::endl;
+                }
+                std::cout << "******************************" << std::endl;
+    			std::cout << std::endl << "What is the " + verb_forms[i] + " of the " << iter->first << " tense of the verb " << this->question << "?" << std::endl;
                 std::getline(std::cin, ans);
-                std::string reply = (ans.compare(iter->second.forms[i]) == 0) ? "Correct!" : "Incorrect! The answer is " + iter->second.forms[i];
-                std::cout << reply << std::endl;       
+                std::string reply = (ans.compare(iter->second[i]) == 0) ? "Correct!" : "Incorrect! The answer is " + iter->second[i];
+                std::cout << reply;     
 
-                if (ans.compare(iter->second.forms[i]) == 0) {
+                if (ans.compare(iter->second[i]) == 0) {
                     *successCount+=1;
                     *result+=1;
                     formStates[i] = std::string(ans);
@@ -154,6 +156,8 @@ private:
 	//std::map<std::string, std::deque<std::string> > conjugations; //maps conjugations to a deque of strings
 };
 
+//std::map<std::string, std::list<std::string> > defs;
+
 typedef struct _VerbExistsRetObj {
     bool status;
     VerbFlashCard *targetFlashCard; //a pointer to an already existing conjugation object in memory (pointer to a pointer)
@@ -174,7 +178,7 @@ int main(int argc, char **argv) {
 
 	if (argc >= 2) {
 		if (strcmp(argv[1], "-f") == 0) {
-			printf("Using file %s!\n", argv[2]);
+			printf("Using vocab file %s!\n", argv[2]);
 			targetFile = std::string(argv[2]);
 		}
 		else if (strcmp(argv[1], "-n") == 0) {
@@ -220,7 +224,7 @@ int main(int argc, char **argv) {
 	std::ifstream verb_stream;
 	verb_stream.open(verbs_file);
 
-	printf("verbs.txt is open!\n");
+	//printf("verbs.txt is open!\n");
 	if (verb_stream.good()) {
 
 		//verbs.txt contains verbs in the following format: verb_name|english_definition|conjugation|yo|tu|el/ella|nos|vos|ellos
@@ -244,21 +248,11 @@ int main(int argc, char **argv) {
 				VerbExistsRetObj *verbExistsRetObj = contains_verb(&cardList, curVerb[0]); //does the list of flash cards contain a verb with this name?
 				if (verbExistsRetObj->status == true) {
 
-					VerbFlashCard::Conjugation curConjugation;
-
-					puts("bp0");
-
-                    curConjugation.forms[0] = curVerb[3];
-                    curConjugation.forms[1] = curVerb[4];
-                    curConjugation.forms[2] = curVerb[5];
-                    curConjugation.forms[3] = curVerb[6];
-                    curConjugation.forms[4] = curVerb[7];
-                    curConjugation.forms[5] = curVerb[8];	
-                    puts("bp1");			
-
-					//verbExistsRetObj->targetFlashCard->conjugations.insert(std::pair<std::string, VerbFlashCard::Conjugation> (curVerb[2], curConjugation)); //NOW, a new conjugation has been inserted into the VerbFlashCard object inside of cardList.
-					verbExistsRetObj->targetFlashCard->conjugations.insert(std::pair<std::string, VerbFlashCard::Conjugation>(curVerb[2], curConjugation)); //NOW, a new conjugation has been inserted into the VerbFlashCard object inside of cardList.
-					puts("bp2");
+                    std::deque<std::string> conjugationList;
+                    for (int i = 3; i < 9; i++) {
+                    	conjugationList.push_front(curVerb[i]);
+                    }		
+                    verbExistsRetObj->targetFlashCard->conjugations.insert(std::pair<std::string, std::deque<std::string> > (curVerb[2], conjugationList));
 				}
 				else {
 					//verb does NOT exist...need to create a new flash card...
@@ -266,10 +260,10 @@ int main(int argc, char **argv) {
 					cardList.push_front(newVerbFlashCard);
 				}
 
-				puts("bp3");
+				//puts("bp3");
 
 				delete verbExistsRetObj;
-				puts("bp4");
+				//puts("bp4");
 			}
 		}
 	}
@@ -305,8 +299,14 @@ int main(int argc, char **argv) {
 		if (strcmp(cardList[index]->getHint(), " ")!=0) {
 			hint_available = "(hint available!)";
 		}
+
 		std::cout << std::endl;
-		cardList[index]->ask(&successCount, &failureCount, &questionCount, &results[index]);
+		cardList[index]->ask(
+							 &successCount, 
+							 &failureCount, 
+							 &questionCount, 
+							 &results[index]
+							);
 
         switch(recv_signal()) {
             case -1:
