@@ -4,7 +4,7 @@
 
 #include "BashCards.h"
 
-static const std::string verb_forms[6] = {"yo form", "tu form", "el/ellos/usted form", "nosotros form", "vosotros form", "ellos/ellas/ustedes form"};
+static const std::string verb_forms[6] = {"yo form", "tu form", "el/ella form", "nosotros form", "vosotros form", "ellos/ellas/ustedes form"};
 static int SIGNAL=-2;
 static bool DEBUG_OUTPUT = false;
 std::string verbs_file = "verbs.txt";
@@ -121,9 +121,9 @@ public:
             std::string formStates[6] = {"***", "***", "***", "***", "***", "***"};
             for (int i = 0; i < 6; i++) {
                 std::string ans;                
-                std::cout << std::endl << "******************************" << std::endl;
-                for (int j = 0; j < 6; j++) {
-                	std::cout << verb_forms[j] + ": " + formStates[j] + " " << std::endl;
+                std::cout << std::endl << "Conjugation of " + this->question << std::endl << "******************************" << std::endl;
+                for (int j = 0; j < 3; j++) {
+                	std::cout << formStates[j] + " " + formStates[5-j] << std::endl;
                 }
                 std::cout << "******************************" << std::endl;
     			std::cout << std::endl << "What is the " + verb_forms[i] + " of the " << iter->first << " tense of the verb " << this->question << "?" << std::endl;
