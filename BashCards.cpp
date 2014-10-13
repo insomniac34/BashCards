@@ -3,202 +3,13 @@
  */
 
 #include "BashCards.h"
+#include "config.h"
 
-static const std::string verb_forms[6] = {"yo form", "tu form", "el/ella form", "nosotros form", "vosotros form", "ellos/ellas/ustedes form"};
-static int SIGNAL=-2;
 static bool DEBUG_OUTPUT = false;
 std::string verbs_file = "verbs.txt";
-bool LEARNING_MODE=false;
+
 std::deque<bool> hintList;
 bool initial_run=true;
-
-#define FAILURE_THRESHOLD -3
-#define SUCCESS_THRESHOLD 3
-#define EXIT_SIGNAL -1
-
-#ifndef _FLASHCARD
-#define _FLASHCARD
-class FlashCard {
-public:
-	FlashCard() {}
-
-	explicit FlashCard(const char* question, const char* answer) {
-		this->question = std::string(question);
-		this->answer = std::string(answer);
-		this->hint = " ";
-		//std::cout << "added " << this->question << " and " << this->answer << "to flashcards!";
-	}
-
-	~FlashCard() {}
-
-	std::string question;
-	std::string answer;
-
-	int id;
-
-	void setHint(const char *hint) {
-		this->hint = std::string(hint);
-	}
-	
-	const char *getHint() {
-		return this->hint.c_str();
-	}
-
-	virtual void ask(int *successCount, int *failureCount, int *questionCount, int *result, bool *hintAllowed) {
-        std::string ans;
-		std::cout << "Define: " << this->question << " (s: stop, h: view hint, sh: set hint, m: mark, p: view current score, c: clear terminal) " << this->getHint() << std::endl;		
-        //std::cin >> ans;
-		std::getline(std::cin, ans);
-
-		if (ans.compare("q") == 0) {
-			send_signal(-1);
-		}
-        else if (ans.compare("h") == 0) {
-            send_signal(2);
-        }
-        else if (ans.compare("sh") == 0) {
-            send_signal(1);
-        }
-        else if (ans.compare("s") == 0) {
-            send_signal(-1);
-        }      
-        else if (ans.compare("m") == 0) {
-            send_signal(3);
-        }                
-        else if (ans.compare("p") == 0) {
-            send_signal(4);
-        }       
-        else if (ans.compare("D") == 0) {
-            send_signal(5);
-        }   
-        else if ((ans.compare("?") == 0) && LEARNING_MODE && (*hintAllowed)) {
-        	std::cout << "The answer is " << this->answer << std::endl;
-        	*hintAllowed = false;
-        }
-        else {
-            //std::cout << "comparing " << ans << " to " << this->answer << std::endl;
-
-            std::string reply = (ans.compare(this->answer) == 0) ? "Correct!" : "Wrong! The answer is " + this->answer;
-            std::cout << reply;
-
-            //TODO: make cleaner and integrate with above condition evaluations
-            if (ans.compare(this->answer) == 0) {
-                *successCount+=1;
-                *result+=1;
-            }
-            else {
-                *failureCount+=1;
-                *result-=1;
-            }
-            
-            if (questionCount!=0) std::cout << " (Current Score: " << (100*((float)(*successCount) / (float)(*questionCount))) << "%)" << std::endl;            
-        	*questionCount+=1;
-        }                                      
-	}
-
-private:
-
-	std::string hint;
-};
-#endif
-
-#ifndef _VERB_FLASHCARD
-#define _VERB_FLASHCARD
-class VerbFlashCard : public FlashCard {
-public:
-	VerbFlashCard() {}
-
-	VerbFlashCard(const char *question, const char *answer, std::vector<std::string> *verbList) : FlashCard(question, answer) {
-
-        std::deque<std::string> curConjugation;
-        //for (int i = 0; i < 9; i++) printf("adding word... %s\n", ((*verbList)[i]).c_str());
-        curConjugation.push_back((*verbList)[3]);
-        curConjugation.push_back((*verbList)[4]);
-        curConjugation.push_back((*verbList)[5]);
-        curConjugation.push_back((*verbList)[6]);
-        curConjugation.push_back((*verbList)[7]);
-        curConjugation.push_back((*verbList)[8]);
-
-		this->conjugations.insert(std::pair<std::string, std::deque<std::string> > ((*verbList)[2], curConjugation));	
-	}
-
-	typedef struct Conjugation {
-        std::deque<std::string> forms;
-        Conjugation() {
-            this->forms = std::deque<std::string> (6, " ");
-        }
-        ~Conjugation() {}
-	};	
-
-	std::map<std::string, std::deque<std::string> > conjugations; //hash table that maps verb tense to a given conjugation.		
-
-	
-	//overrides base class variant of ask()...iterates over present conjugations...
-	virtual void ask(int *successCount, int *failureCount, int *questionCount, int *result, bool *hintAllowed)  {
-		for (std::map<std::string, std::deque<std::string> >::iterator iter = this->conjugations.begin(); iter != this->conjugations.end(); iter++) {
-            std::string formStates[6] = {"***", "***", "***", "***", "***", "***"};
-
-            int localSuccessCount = 0;
-            for (int i = 0; i < 6; i++) {
-                std::string ans;                
-                std::cout << std::endl <<"Conjugation of " + this->question << " in the " << iter->first << std::endl << "******************************" << std::endl;
-                for (int j = 0; j < 3; j++) {
-                	std::cout << formStates[j] + " " + formStates[5-j] << std::endl;
-                }
-                std::cout << "******************************" << std::endl;
-    			std::cout << std::endl << "What is the " + verb_forms[i] + " of the " << iter->first << " tense of the verb " << this->question << "?" << std::endl;
-                std::getline(std::cin, ans);
-
-                if (ans.compare("q")==0) {
-                	send_signal(EXIT_SIGNAL);
-                	break;
-                }
-
-                std::string reply = (ans.compare(iter->second[i]) == 0) ? "Correct!" : "Incorrect! The answer is " + iter->second[i];
-                std::cout << reply;     
-
-                if (ans.compare(iter->second[i]) == 0) {
-                    //*successCount+=1;
-                    //*result+=1;
-                    localSuccessCount+=1;
-                    formStates[i] = std::string(ans);
-                }
-                else {
-                    //*failureCount+=1;
-                    //*result-=1;
-                    localSuccessCount-=1;
-                    formStates[i] = std::string("XXX");
-                }          
-            }           
-            if (localSuccessCount == 6) 
-            {
-            	std::cout << localSuccessCount << " verbs succesfully conjuated!" << std::endl;
-            	*successCount+=1;
-            	*result+=1;
-            }
-            else 
-            {
-            	std::cout << "Verb NOT correctly conjuated!" << std::endl;
-            	*failureCount+=1;
-            	*result-=1;
-            }      
-            *questionCount+=1;  
- 			//check for div by 0
-            if (questionCount != 0) std::cout << " (Current Score: " << (100*((float)(*successCount)/(float)(*questionCount))) << "%)" << std::endl;            
-		}		
-	}
-
-	~VerbFlashCard() {}
-
-private:
-	//std::map<std::string, std::deque<std::string> > conjugations; //maps conjugations to a deque of strings
-};
-#endif
-
-static void deallocate(std::deque<FlashCard*>*);
-std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems);
-std::vector<std::string> split(const std::string &s, char delim);
-VerbExistsRetObj *contains_verb(std::deque<FlashCard*>*, std::string); //accepts 2 parameters: a deque of cards and a string holding the verb name
 
 bool smartFlag = true;
 bool reverseFlag = false;
@@ -211,6 +22,9 @@ bool contains(const std::string &str) {
 
 int main(int argc, char **argv) {
 	srand(time(NULL));
+
+	SIGNAL=-2;
+	LEARNING_MODE=false;
 
 	for (int i = 0; i < argc; i++) {
 		args.push_front(std::string(argv[i]));
@@ -419,7 +233,9 @@ int main(int argc, char **argv) {
         if (smartFlag && results[index] >= SUCCESS_THRESHOLD) {
         	std::cout << std::endl << "**BashCards: Removing word \"" << cardList[index]->question << "\" due to success count!**" << std::endl;
         	results.erase(results.begin()+index);
+        	FlashCard *fc = *(cardList.begin()+index);
         	cardList.erase(cardList.begin()+index);
+        	delete fc;
         	hintList.erase(hintList.begin()+index);
         }
 
@@ -488,11 +304,11 @@ VerbExistsRetObj *contains_verb(std::deque<FlashCard*> *cards, std::string verbT
 }
 
 /* signal system for communicating between main 'game' loop and flashcard methods*/
-static int send_signal(int new_sig) {
+void send_signal(int new_sig) {
     SIGNAL = new_sig;
 }
 
-static int recv_signal() {
+int recv_signal() {
     int ret = SIGNAL;
     SIGNAL = -2; //reset
     return ret;

@@ -21,11 +21,13 @@
 #include <unordered_map>
 #include <vector>
 
-class FlashCard;
-class VerbFlashCard;
+#include "FlashCard.h"
+#include "VerbFlashCard.h"
 
-static int send_signal(int);
-static int recv_signal();
+bool LEARNING_MODE;
+int SIGNAL;
+void send_signal(int new_sig);
+int recv_signal();
 
 typedef struct _VerbExistsRetObj {
     bool status;
@@ -38,3 +40,4 @@ std::vector<std::string> &split(const std::string &s, char delim, std::vector<st
 std::vector<std::string> split(const std::string &s, char delim);
 VerbExistsRetObj *contains_verb(std::deque<FlashCard*>*, std::string); //accepts 2 parameters: a deque of cards and a string holding the verb name
 static void deallocatePointers();
+
