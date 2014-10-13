@@ -8,10 +8,16 @@ static const std::string verb_forms[6] = {"yo form", "tu form", "el/ella form", 
 static int SIGNAL=-2;
 static bool DEBUG_OUTPUT = false;
 std::string verbs_file = "verbs.txt";
+bool LEARNING_MODE=false;
+std::deque<bool> hintList;
+bool initial_run=true;
 
 #define FAILURE_THRESHOLD -3
 #define SUCCESS_THRESHOLD 3
+#define EXIT_SIGNAL -1
 
+#ifndef _FLASHCARD
+#define _FLASHCARD
 class FlashCard {
 public:
 	FlashCard() {}
@@ -38,13 +44,16 @@ public:
 		return this->hint.c_str();
 	}
 
-	virtual void ask(int *successCount, int *failureCount, int *questionCount, int *result) {
+	virtual void ask(int *successCount, int *failureCount, int *questionCount, int *result, bool *hintAllowed) {
         std::string ans;
 		std::cout << "Define: " << this->question << " (s: stop, h: view hint, sh: set hint, m: mark, p: view current score, c: clear terminal) " << this->getHint() << std::endl;		
         //std::cin >> ans;
 		std::getline(std::cin, ans);
 
-        if (ans.compare("h") == 0) {
+		if (ans.compare("q") == 0) {
+			send_signal(-1);
+		}
+        else if (ans.compare("h") == 0) {
             send_signal(2);
         }
         else if (ans.compare("sh") == 0) {
@@ -62,6 +71,10 @@ public:
         else if (ans.compare("D") == 0) {
             send_signal(5);
         }   
+        else if ((ans.compare("?") == 0) && LEARNING_MODE && (*hintAllowed)) {
+        	std::cout << "The answer is " << this->answer << std::endl;
+        	*hintAllowed = false;
+        }
         else {
             //std::cout << "comparing " << ans << " to " << this->answer << std::endl;
 
@@ -77,8 +90,9 @@ public:
                 *failureCount+=1;
                 *result-=1;
             }
-            *questionCount+=1;
-            std::cout << " (Current Score: " << (100*((float)(*successCount) / (float)(*questionCount))) << "%)" << std::endl;            
+            
+            if (questionCount!=0) std::cout << " (Current Score: " << (100*((float)(*successCount) / (float)(*questionCount))) << "%)" << std::endl;            
+        	*questionCount+=1;
         }                                      
 	}
 
@@ -86,7 +100,10 @@ private:
 
 	std::string hint;
 };
+#endif
 
+#ifndef _VERB_FLASHCARD
+#define _VERB_FLASHCARD
 class VerbFlashCard : public FlashCard {
 public:
 	VerbFlashCard() {}
@@ -115,38 +132,59 @@ public:
 
 	std::map<std::string, std::deque<std::string> > conjugations; //hash table that maps verb tense to a given conjugation.		
 
+	
 	//overrides base class variant of ask()...iterates over present conjugations...
-	virtual void ask(int *successCount, int *failureCount, int *questionCount, int *result)  {
+	virtual void ask(int *successCount, int *failureCount, int *questionCount, int *result, bool *hintAllowed)  {
 		for (std::map<std::string, std::deque<std::string> >::iterator iter = this->conjugations.begin(); iter != this->conjugations.end(); iter++) {
             std::string formStates[6] = {"***", "***", "***", "***", "***", "***"};
+
+            int localSuccessCount = 0;
             for (int i = 0; i < 6; i++) {
                 std::string ans;                
-                std::cout << std::endl << "Conjugation of " + this->question << std::endl << "******************************" << std::endl;
+                std::cout << std::endl <<"Conjugation of " + this->question << " in the " << iter->first << std::endl << "******************************" << std::endl;
                 for (int j = 0; j < 3; j++) {
                 	std::cout << formStates[j] + " " + formStates[5-j] << std::endl;
                 }
                 std::cout << "******************************" << std::endl;
     			std::cout << std::endl << "What is the " + verb_forms[i] + " of the " << iter->first << " tense of the verb " << this->question << "?" << std::endl;
                 std::getline(std::cin, ans);
+
+                if (ans.compare("q")==0) {
+                	send_signal(EXIT_SIGNAL);
+                	break;
+                }
+
                 std::string reply = (ans.compare(iter->second[i]) == 0) ? "Correct!" : "Incorrect! The answer is " + iter->second[i];
                 std::cout << reply;     
 
                 if (ans.compare(iter->second[i]) == 0) {
-                    *successCount+=1;
-                    *result+=1;
+                    //*successCount+=1;
+                    //*result+=1;
+                    localSuccessCount+=1;
                     formStates[i] = std::string(ans);
                 }
                 else {
-                    *failureCount+=1;
-                    *result-=1;
+                    //*failureCount+=1;
+                    //*result-=1;
+                    localSuccessCount-=1;
                     formStates[i] = std::string("XXX");
-                }
-
-                *questionCount+=1;
-
-                //check for div by 0
-                if (questionCount != 0) std::cout << " (Current Score: " << (100*((float)(*successCount)/(float)(*questionCount))) << "%)" << std::endl;            
-            }                   
+                }          
+            }           
+            if (localSuccessCount == 6) 
+            {
+            	std::cout << localSuccessCount << " verbs succesfully conjuated!" << std::endl;
+            	*successCount+=1;
+            	*result+=1;
+            }
+            else 
+            {
+            	std::cout << "Verb NOT correctly conjuated!" << std::endl;
+            	*failureCount+=1;
+            	*result-=1;
+            }      
+            *questionCount+=1;  
+ 			//check for div by 0
+            if (questionCount != 0) std::cout << " (Current Score: " << (100*((float)(*successCount)/(float)(*questionCount))) << "%)" << std::endl;            
 		}		
 	}
 
@@ -155,14 +193,7 @@ public:
 private:
 	//std::map<std::string, std::deque<std::string> > conjugations; //maps conjugations to a deque of strings
 };
-
-//std::map<std::string, std::list<std::string> > defs;
-
-typedef struct _VerbExistsRetObj {
-    bool status;
-    VerbFlashCard *targetFlashCard; //a pointer to an already existing conjugation object in memory (pointer to a pointer)
-
-} VerbExistsRetObj;
+#endif
 
 static void deallocate(std::deque<FlashCard*>*);
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems);
@@ -173,8 +204,17 @@ bool smartFlag = true;
 bool reverseFlag = false;
 std::string targetFile = "flashcards.txt";
 
+std::deque<std::string> args;
+bool contains(const std::string &str) {
+	return (args.end() != std::find(args.begin(), args.end(), str));
+}
+
 int main(int argc, char **argv) {
 	srand(time(NULL));
+
+	for (int i = 0; i < argc; i++) {
+		args.push_front(std::string(argv[i]));
+	}	
 
 	if (argc >= 2) {
 		if (strcmp(argv[1], "-f") == 0) {
@@ -198,6 +238,11 @@ int main(int argc, char **argv) {
 			reverseFlag = true;
 			printf("Reverse flashcard mode engaged!\n");
 		}		
+
+		if (contains("-l")) {
+			printf("**Learning mode engaged!**\n");
+			LEARNING_MODE = true;
+		}
 	}
 	
 	//run through flashcards:
@@ -216,6 +261,7 @@ int main(int argc, char **argv) {
 
 			FlashCard *newFlashCard = (reverseFlag) ? new FlashCard(answer.c_str(), question.c_str()) : new FlashCard(question.c_str(), answer.c_str());
 			cardList.push_front(newFlashCard);
+			hintList.push_front(true);
 		}
 	}
 
@@ -250,8 +296,9 @@ int main(int argc, char **argv) {
 
                     std::deque<std::string> conjugationList;
                     for (int i = 3; i < 9; i++) {
-                    	conjugationList.push_front(curVerb[i]);
+                    	conjugationList.push_back(curVerb[i]);
                     }		
+                    puts("bp2");
                     verbExistsRetObj->targetFlashCard->conjugations.insert(std::pair<std::string, std::deque<std::string> > (curVerb[2], conjugationList));
 				}
 				else {
@@ -260,10 +307,10 @@ int main(int argc, char **argv) {
 					cardList.push_front(newVerbFlashCard);
 				}
 
-				//puts("bp3");
+				puts("bp3");
 
 				delete verbExistsRetObj;
-				//puts("bp4");
+				puts("bp4");
 			}
 		}
 	}
@@ -283,7 +330,7 @@ int main(int argc, char **argv) {
 
 	bool randomFlag = (order_ans == 'r') ? true : false;
 
-	int index = 0;
+	int index = (rand()%cardList.size());
 	char buf[128];
 	memset(buf, 0, 128*sizeof(char));
 
@@ -300,12 +347,19 @@ int main(int argc, char **argv) {
 			hint_available = "(hint available!)";
 		}
 
+        if (initial_run) {
+        	initial_run=false;
+            std::cout << "clearing buffers!" << std::endl;
+            std::cin.clear();
+        	std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        }
 		std::cout << std::endl;
 		cardList[index]->ask(
 							 &successCount, 
 							 &failureCount, 
 							 &questionCount, 
-							 &results[index]
+							 &results[index],
+							 &(hintList[index])
 							);
 
         switch(recv_signal()) {
@@ -358,12 +412,15 @@ int main(int argc, char **argv) {
             FlashCard *duplicate = (reverseFlag) ? new FlashCard(cardList[index]->answer.c_str(), cardList[index]->question.c_str()) : new FlashCard(cardList[index]->question.c_str(), cardList[index]->answer.c_str());
             cardList.push_front(duplicate);
             results.push_front(0);
+            bool newHint = (LEARNING_MODE) ? true : false;
+            hintList.push_front(newHint);
         }
 
         if (smartFlag && results[index] >= SUCCESS_THRESHOLD) {
         	std::cout << std::endl << "**BashCards: Removing word \"" << cardList[index]->question << "\" due to success count!**" << std::endl;
         	results.erase(results.begin()+index);
         	cardList.erase(cardList.begin()+index);
+        	hintList.erase(hintList.begin()+index);
         }
 
         if (cardList.size() == 0) {
@@ -430,6 +487,7 @@ VerbExistsRetObj *contains_verb(std::deque<FlashCard*> *cards, std::string verbT
 	return ret;
 }
 
+/* signal system for communicating between main 'game' loop and flashcard methods*/
 static int send_signal(int new_sig) {
     SIGNAL = new_sig;
 }
